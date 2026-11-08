@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#b5838d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="結婚式の収支">
+  <title>結婚式の収支</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 参加画面 -->
+  <section id="joinView" class="view" hidden>
+    <div class="join">
+      <div class="join-logo">💍</div>
+      <h1>結婚式の収支</h1>
+      <p class="muted">二人で同じ「合言葉」を使うと、データが共有されます。</p>
+      <button id="createRoomBtn" class="btn primary block">新しく始める</button>
+      <div class="divider"><span>または</span></div>
+      <label class="field">
+        <span>相手から届いた合言葉</span>
+        <input id="joinCode" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例：k3f9a...">
+      </label>
+      <button id="joinRoomBtn" class="btn block">参加する</button>
+      <p id="joinError" class="error" hidden></p>
+    </div>
+  </section>
+
+  <!-- メイン画面 -->
+  <section id="mainView" class="view" hidden>
+    <header class="top">
+      <div id="modeBanner" class="banner" hidden>お試しモード：データはこの端末にだけ保存されます</div>
+      <div class="summary">
+        <div class="sum-main">
+          <span class="label">収支（収入 − 支出）</span>
+          <span id="sumBalance" class="big">¥0</span>
+        </div>
+        <div class="sum-row">
+          <div><span class="label">収入</span><span id="sumIncome" class="income">¥0</span></div>
+          <div><span class="label">支出</span><span id="sumExpense" class="expense">¥0</span></div>
+          <div><span class="label">未払い</span><span id="sumUnpaid">¥0</span></div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div id="tabList" class="tab">
+        <div class="chips" role="tablist">
+          <button class="chip active" data-filter="all">すべて</button>
+          <button class="chip" data-filter="expense">支出</button>
+          <button class="chip" data-filter="income">収入</button>
+          <button class="chip" data-filter="unpaid">未払い</button>
+        </div>
+        <div id="list"></div>
+        <p id="emptyMsg" class="empty" hidden>まだ項目がありません。<br>右下の ＋ から追加しましょう。</p>
+      </div>
+
+      <div id="tabStats" class="tab" hidden>
+        <h2>カテゴリ別の支出</h2>
+        <div id="statsCategory" class="card"></div>
+        <h2>カテゴリ別の収入</h2>
+        <div id="statsIncome" class="card"></div>
+        <h2>誰が払った・受け取った</h2>
+        <div id="statsPayer" class="card"></div>
+        <p class="muted small">「お金の動き」は、その人が受け取った額から払った額を引いた値です。マイナスはその人の持ち出しを表します。</p>
+      </div>
+
+      <div id="tabSettings" class="tab" hidden>
+        <h2>二人の名前</h2>
+        <div class="card pad">
+          <label class="field"><span>一人目</span><input id="nameA" type="text" maxlength="12"></label>
+          <label class="field"><span>二人目</span><input id="nameB" type="text" maxlength="12"></label>
+          <button id="saveNamesBtn" class="btn primary block">保存</button>
+        </div>
+        <h2>共有</h2>
+        <div class="card pad">
+          <p class="muted small">この合言葉（またはリンク）を相手に送ると、同じデータを見られます。合言葉を知っている人は誰でも編集できるので、二人以外には教えないでください。</p>
+          <code id="roomCodeView" class="code"></code>
+          <button id="shareBtn" class="btn primary block">リンクを送る</button>
+          <button id="copyBtn" class="btn block">合言葉をコピー</button>
+        </div>
+        <h2>その他</h2>
+        <div class="card pad">
+          <button id="exportBtn" class="btn block">CSVで書き出す</button>
+          <button id="leaveBtn" class="btn danger block">この端末から退出する</button>
+          <p class="muted small">退出してもデータは消えません。同じ合言葉で再度参加できます。</p>
+        </div>
+      </div>
+    </main>
+
+    <button id="fab" class="fab" aria-label="追加">＋</button>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-tab="tabList"><span>📋</span>一覧</button>
+      <button class="nav-btn" data-tab="tabStats"><span>📊</span>集計</button>
+      <button class="nav-btn" data-tab="tabSettings"><span>⚙️</span>設定</button>
+    </nav>
+  </section>
+
+  <!-- 入力シート -->
+  <div id="sheetBackdrop" class="backdrop" hidden></div>
+  <form id="sheet" class="sheet" hidden>
+    <div class="sheet-head">
+      <h3 id="sheetTitle">項目を追加</h3>
+      <button type="button" id="sheetClose" class="icon-btn" aria-label="閉じる">✕</button>
+    </div>
+    <div class="seg" role="radiogroup">
+      <label><input type="radio" name="type" value="expense" checked><span>支出</span></label>
+      <label><input type="radio" name="type" value="income"><span>収入</span></label>
+    </div>
+    <label class="field"><span>カテゴリ</span><select name="category" id="fCategory"></select></label>
+    <label class="field"><span>内容</span><input name="title" type="text" maxlength="40" placeholder="例：会場 申込金" required></label>
+    <label class="field"><span>金額（円）</span><input name="amount" type="text" inputmode="numeric" placeholder="0" required></label>
+    <label class="field"><span id="payerLabel">払った人</span><select name="payer" id="fPayer"></select></label>
+    <label class="field"><span>日付</span><input name="date" type="date"></label>
+    <label class="check"><input name="paid" type="checkbox" checked><span id="paidLabel">支払い済み</span></label>
+    <label class="field"><span>メモ</span><textarea name="memo" rows="2" maxlength="200"></textarea></label>
+    <div class="sheet-actions">
+      <button type="button" id="deleteBtn" class="btn danger" hidden>削除</button>
+      <button type="submit" class="btn primary grow">保存</button>
+    </div>
+  </form>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
