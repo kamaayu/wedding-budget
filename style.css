@@ -153,3 +153,14 @@ h2 { font-size: 14px; color: var(--muted); margin: 22px 4px 8px; font-weight: 60
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(150px + var(--safe-b));
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 20;
 }
+
+/* カテゴリ編集 */
+.cat-head { font-size: 14px; margin: 16px 0 6px; }
+.cat-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; }
+.cat-list li { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 12px; border-bottom: 1px solid var(--line); }
+.cat-list li:last-child { border-bottom: 0; }
+.cat-name { flex: 1; min-width: 0; }
+.cat-list .icon-btn { font-size: 16px; padding: 8px 10px; }
+.cat-list .icon-btn:disabled { opacity: .25; }
+.cat-add { display: flex; gap: 8px; margin-top: 8px; }
+.cat-add input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 16px; }

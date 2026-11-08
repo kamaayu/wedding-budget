@@ -3,14 +3,26 @@ import { firebaseConfig } from "./firebase-config.js";
 const FB_VER = "10.14.1";
 const ROOM_KEY = "wb.room";
 
-const EXPENSE_CATS = ["会場・料理", "衣装・美容", "写真・映像", "装花・装飾", "引出物・ギフト", "招待状・ペーパー", "演出・司会", "指輪", "前撮り", "新婚旅行", "その他"];
-const INCOME_CATS = ["ご祝儀", "親からの援助", "その他の収入"];
+const DEFAULT_EXPENSE_CATS = ["会場・料理", "衣装・美容", "写真・映像", "装花・装飾", "引出物・ギフト", "招待状・ペーパー", "演出・司会", "指輪", "前撮り", "新婚旅行", "その他"];
+const DEFAULT_INCOME_CATS = ["ご祝儀", "親からの援助", "その他の収入"];
 
 const $ = (s) => document.querySelector(s);
 const yen = (n) => (n < 0 ? "−" : "") + "¥" + Math.abs(Math.round(n)).toLocaleString("ja-JP");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const state = { items: [], settings: { nameA: "新郎", nameB: "新婦" }, filter: "all", editingId: null };
+const state = {
+  items: [],
+  settings: { nameA: "新郎", nameB: "新婦", expenseCats: DEFAULT_EXPENSE_CATS, incomeCats: DEFAULT_INCOME_CATS },
+  filter: "all",
+  editingId: null,
+};
+
+// カテゴリ一覧。設定にないカテゴリが付いた項目（削除済みカテゴリなど）も消さずに後ろへ並べる
+function cats(type) {
+  const base = type === "income" ? state.settings.incomeCats : state.settings.expenseCats;
+  const extra = [...new Set(state.items.filter((x) => x.type === type && x.category && !base.includes(x.category)).map((x) => x.category))];
+  return [...base, ...extra];
+}
 let store = null;
 
 /* ---------------- 保存先（Firebase / お試し） ---------------- */
@@ -121,7 +133,7 @@ function renderList() {
   const items = state.items.filter((it) =>
     f === "all" ? true : f === "unpaid" ? it.type === "expense" && !it.paid : it.type === f
   );
-  const order = [...EXPENSE_CATS, ...INCOME_CATS];
+  const order = { expense: cats("expense"), income: cats("income") };
   const groups = new Map();
   for (const it of items) {
     const key = `${it.type}|${it.category}`;
@@ -131,7 +143,7 @@ function renderList() {
   const keys = [...groups.keys()].sort((a, b) => {
     const [ta, ca] = a.split("|"), [tb, cb] = b.split("|");
     if (ta !== tb) return ta === "income" ? -1 : 1;
-    return order.indexOf(ca) - order.indexOf(cb);
+    return order[ta].indexOf(ca) - order[tb].indexOf(cb);
   });
   $("#emptyMsg").hidden = items.length > 0;
   $("#list").innerHTML = keys.map((key) => {
@@ -150,10 +162,10 @@ function renderList() {
   }).join("");
 }
 
-function catStats(type, cats, el) {
+function catStats(type, el) {
   const items = state.items.filter((x) => x.type === type);
   const total = items.reduce((s, x) => s + x.amount, 0);
-  const rows = cats
+  const rows = cats(type)
     .map((c) => [c, items.filter((x) => x.category === c).reduce((s, x) => s + x.amount, 0)])
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1]);
@@ -163,8 +175,9 @@ function catStats(type, cats, el) {
 }
 
 function renderStats() {
-  catStats("expense", EXPENSE_CATS, $("#statsCategory"));
-  catStats("income", INCOME_CATS, $("#statsIncome"));
+  catStats("expense", $("#statsCategory"));
+  catStats("income", $("#statsIncome"));
+  renderCatEditor();
   const rows = payerOptions().map(([k, name]) => {
     const out = state.items.filter((x) => x.type === "expense" && x.payer === k).reduce((s, x) => s + x.amount, 0);
     const inc = state.items.filter((x) => x.type === "income" && x.payer === k).reduce((s, x) => s + x.amount, 0);
@@ -176,6 +189,65 @@ function renderStats() {
     : `<div class="stat-row muted">まだありません</div>`;
 }
 
+/* ---------------- カテゴリ編集 ---------------- */
+// カテゴリの追加・削除・並べ替えは「設定（部屋の情報）」だけを書き換える。
+// 入力済みの項目データには一切触れないので、カテゴリを消しても項目は消えない。
+
+function renderCatEditor() {
+  for (const type of ["expense", "income"]) {
+    const key = type === "income" ? "incomeCats" : "expenseCats";
+    const list = state.settings[key];
+    $(`#catList-${type}`).innerHTML = list.map((c, i) => {
+      const n = state.items.filter((x) => x.type === type && x.category === c).length;
+      return `<li>
+        <span class="cat-name">${esc(c)}${n ? `<span class="muted small">（${n}件）</span>` : ""}</span>
+        <button type="button" class="icon-btn" data-act="up" data-type="${type}" data-i="${i}" aria-label="上へ" ${i === 0 ? "disabled" : ""}>↑</button>
+        <button type="button" class="icon-btn" data-act="del" data-type="${type}" data-i="${i}" aria-label="削除">✕</button>
+      </li>`;
+    }).join("");
+  }
+}
+
+async function saveCats(type, list) {
+  const key = type === "income" ? "incomeCats" : "expenseCats";
+  state.settings[key] = list;
+  renderCatEditor();
+  try { await store.saveSettings({ [key]: list }); }
+  catch (e) { toast("保存に失敗しました：" + (e.code || e.message)); }
+}
+
+async function onCatEditorClick(e) {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const type = b.dataset.type, i = Number(b.dataset.i);
+  const list = [...state.settings[type === "income" ? "incomeCats" : "expenseCats"]];
+  if (b.dataset.act === "up" && i > 0) {
+    [list[i - 1], list[i]] = [list[i], list[i - 1]];
+    await saveCats(type, list);
+  } else if (b.dataset.act === "del") {
+    if (list.length <= 1) return toast("カテゴリは1つ以上必要です");
+    const name = list[i];
+    const n = state.items.filter((x) => x.type === type && x.category === name).length;
+    const msg = n
+      ? `「${name}」を選択肢から外しますか？\n\nこのカテゴリの項目${n}件は消えません。一覧や集計にはそのまま表示されます。`
+      : `「${name}」を選択肢から外しますか？`;
+    if (!confirm(msg)) return;
+    list.splice(i, 1);
+    await saveCats(type, list);
+  }
+}
+
+async function onCatAdd(type) {
+  const input = $(`#catNew-${type}`);
+  const name = input.value.trim().slice(0, 20);
+  if (!name) return;
+  const list = state.settings[type === "income" ? "incomeCats" : "expenseCats"];
+  if (list.includes(name)) return toast("同じ名前のカテゴリがあります");
+  input.value = "";
+  await saveCats(type, [...list, name]);
+  toast(`「${name}」を追加しました`);
+}
+
 /* ---------------- 入力シート ---------------- */
 
 function fillSelect(sel, opts, value) {
@@ -185,8 +257,9 @@ function fillSelect(sel, opts, value) {
 
 function syncSheetType(type, keepCategory) {
   const f = $("#sheet");
-  const cats = type === "income" ? INCOME_CATS : EXPENSE_CATS;
-  fillSelect($("#fCategory"), cats.map((c) => [c, c]), keepCategory);
+  const list = cats(type);
+  if (keepCategory && !list.includes(keepCategory)) list.push(keepCategory);
+  fillSelect($("#fCategory"), list.map((c) => [c, c]), keepCategory);
   $("#payerLabel").textContent = type === "income" ? "受け取った人" : "払った人";
   $("#paidLabel").textContent = type === "income" ? "受け取り済み" : "支払い済み";
   f.paid.closest(".check").hidden = type === "income";
@@ -272,7 +345,12 @@ function showMain(code) {
     code,
     (items) => { state.items = items.map((x) => ({ ...x, amount: Number(x.amount) || 0 })); render(); },
     (s) => {
-      state.settings = { nameA: s.nameA || "新郎", nameB: s.nameB || "新婦" };
+      state.settings = {
+        nameA: s.nameA || "新郎",
+        nameB: s.nameB || "新婦",
+        expenseCats: Array.isArray(s.expenseCats) && s.expenseCats.length ? s.expenseCats : DEFAULT_EXPENSE_CATS,
+        incomeCats: Array.isArray(s.incomeCats) && s.incomeCats.length ? s.incomeCats : DEFAULT_INCOME_CATS,
+      };
       $("#nameA").value = state.settings.nameA;
       $("#nameB").value = state.settings.nameB;
       render();
@@ -354,6 +432,11 @@ function bind() {
     toast("合言葉をコピーしました");
   };
   $("#exportBtn").onclick = exportCsv;
+  $("#catEditor").onclick = onCatEditorClick;
+  for (const type of ["expense", "income"]) {
+    $(`#catAdd-${type}`).onclick = () => onCatAdd(type);
+    $(`#catNew-${type}`).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); onCatAdd(type); } });
+  }
   $("#leaveBtn").onclick = () => {
     if (!confirm("この端末から退出しますか？（データは消えません）")) return;
     store.close();

@@ -1,6 +1,6 @@
 // アプリ本体をキャッシュして、オフラインでも起動できるようにします。
 // ファイルを更新したら VERSION の数字を上げてください。
-const VERSION = "v1";
+const VERSION = "v2";
 const FILES = ["./", "index.html", "style.css", "app.js", "firebase-config.js", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {

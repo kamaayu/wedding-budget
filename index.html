@@ -78,6 +78,22 @@
           <label class="field"><span>二人目</span><input id="nameB" type="text" maxlength="12"></label>
           <button id="saveNamesBtn" class="btn primary block">保存</button>
         </div>
+        <h2>カテゴリ</h2>
+        <div id="catEditor" class="card pad">
+          <p class="muted small">カテゴリを外しても、入力済みの項目は消えません。</p>
+          <h3 class="cat-head">支出</h3>
+          <ul id="catList-expense" class="cat-list"></ul>
+          <div class="cat-add">
+            <input id="catNew-expense" type="text" maxlength="20" placeholder="新しい支出カテゴリ">
+            <button type="button" id="catAdd-expense" class="btn">追加</button>
+          </div>
+          <h3 class="cat-head">収入</h3>
+          <ul id="catList-income" class="cat-list"></ul>
+          <div class="cat-add">
+            <input id="catNew-income" type="text" maxlength="20" placeholder="新しい収入カテゴリ">
+            <button type="button" id="catAdd-income" class="btn">追加</button>
+          </div>
+        </div>
         <h2>共有</h2>
         <div class="card pad">
           <p class="muted small">この合言葉（またはリンク）を相手に送ると、同じデータを見られます。合言葉を知っている人は誰でも編集できるので、二人以外には教えないでください。</p>
